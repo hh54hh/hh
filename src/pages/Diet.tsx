@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import {
-  Dumbbell,
+  Utensils,
   Plus,
   Search,
   Edit,
   Trash2,
   Save,
   X,
-  Check,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,101 +39,126 @@ import {
 import { db } from "@/lib/database";
 import { toast } from "sonner";
 
-interface CoursePoint {
+interface DietItem {
   id: string;
   name: string;
   description: string;
   category: string;
+  calories?: number;
+  protein?: number;
   created_at: string;
 }
 
-const categories = [
-  "تمارين القوة",
-  "تمارين الكارديو",
-  "تمارين المرونة",
-  "تمارين التوازن",
-  "تمارين التحمل",
-  "تمارين إعادة التأهيل",
+const dietCategories = [
+  "بروتينات",
+  "كربوهيدرات",
+  "دهون صحية",
+  "فيتامينات",
+  "معاد��",
+  "مكملات غذائية",
+  "خضروات",
+  "فواكه",
+  "حبوب",
+  "منتجات ألبان",
 ];
 
-// Initial course points
-const initialCoursePoints: CoursePoint[] = [
+// Initial diet items
+const initialDietItems: DietItem[] = [
   {
     id: "1",
-    name: "تمرين الضغط",
-    description: "تمرين أساسي لتقوية عضلات الصدر والذراعين",
-    category: "تم��رين القوة",
+    name: "البروتين المصل",
+    description: "مكمل بروتيني عالي الجودة لبناء العضلات",
+    category: "مكملات غذائية",
+    calories: 120,
+    protein: 25,
     created_at: "2024-01-15T10:00:00Z",
   },
   {
     id: "2",
-    name: "تمرين العقلة",
-    description: "تمرين لتقوية عضلات الظهر والذراعين",
-    category: "تمارين القوة",
+    name: "الأرز البني",
+    description: "مصدر ممتاز للكربوهيدرات المعقدة",
+    category: "كربوهيدرات",
+    calories: 350,
+    protein: 7,
     created_at: "2024-01-16T11:00:00Z",
   },
   {
     id: "3",
-    name: "الجري",
-    description: "تمرين كارديو لتحسين القدرة على التحمل",
-    category: "تمارين الكارديو",
+    name: "السلمون",
+    description: "مصدر غني بالبروتين والأوميغا 3",
+    category: "بروتينات",
+    calories: 200,
+    protein: 25,
     created_at: "2024-01-17T09:00:00Z",
   },
   {
     id: "4",
-    name: "اليوغا",
-    description: "تمارين للمرونة والاسترخاء",
-    category: "تمارين المرونة",
+    name: "السبانخ",
+    description: "خضروات ورقية غنية بالحديد والفيتامينات",
+    category: "خضروات",
+    calories: 20,
+    protein: 3,
     created_at: "2024-01-18T16:00:00Z",
+  },
+  {
+    id: "5",
+    name: "الموز",
+    description: "فاكهة غنية ب��لبوتاسيوم والطاقة السريعة",
+    category: "فواكه",
+    calories: 95,
+    protein: 1,
+    created_at: "2024-01-19T08:00:00Z",
   },
 ];
 
-export default function Courses() {
-  const [coursePoints, setCoursePoints] = useState<CoursePoint[]>([]);
+export default function Diet() {
+  const [dietItems, setDietItems] = useState<DietItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("الكل");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingCourse, setEditingCourse] = useState<CoursePoint | null>(null);
+  const [editingItem, setEditingItem] = useState<DietItem | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    category: categories[0],
+    category: dietCategories[0],
+    calories: "",
+    protein: "",
   });
 
-  // Load data from localStorage
+  // Load data from IndexedDB
   useEffect(() => {
-    const loadCoursePoints = async () => {
+    const loadDietItems = async () => {
       try {
-        const courses = await db.coursePoints.toArray();
-        setCoursePoints(courses);
+        const items = await db.dietItems.toArray();
+        setDietItems(items);
       } catch (error) {
-        console.error("Error loading course points:", error);
-        setCoursePoints(initialCoursePoints);
+        console.error("Error loading diet items:", error);
+        setDietItems(initialDietItems);
       }
     };
 
-    loadCoursePoints();
+    loadDietItems();
   }, []);
 
   // Filter and search
-  const filteredCourses = coursePoints.filter((course) => {
-    const matchesSearch = course.name
+  const filteredItems = dietItems.filter((item) => {
+    const matchesSearch = item.name
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
     const matchesCategory =
-      selectedCategory === "الكل" || course.category === selectedCategory;
+      selectedCategory === "الكل" || item.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  // Reload courses from database
-  const reloadCourses = async () => {
+  // Reload diet items from database
+  const reloadDietItems = async () => {
     try {
-      const courses = await db.coursePoints.toArray();
-      setCoursePoints(courses);
+      const items = await db.dietItems.toArray();
+      setDietItems(items);
     } catch (error) {
-      console.error("Error reloading courses:", error);
+      console.error("Error reloading diet items:", error);
     }
   };
 
@@ -143,90 +168,109 @@ export default function Courses() {
 
     // Comprehensive validation
     if (!formData.name || !formData.name.trim()) {
-      toast.error("يرجى إدخال اسم التمرين");
+      toast.error("يرجى إدخال اسم العنصر الغذائي");
       return;
     }
 
     if (!formData.description || !formData.description.trim()) {
-      toast.error("يرجى إدخال وصف التمرين");
+      toast.error("يرجى إدخال وصف العنصر الغذائي");
       return;
     }
 
     if (!formData.category || !formData.category.trim()) {
-      toast.error("يرجى اختيار فئة التمرين");
+      toast.error("يرجى اختيار فئة العنصر الغذائي");
+      return;
+    }
+
+    // Validate numeric fields
+    if (formData.calories && formData.calories < 0) {
+      toast.error("السعرات الحرارية لا يمكن أن تكون سالبة");
+      return;
+    }
+
+    if (formData.protein && formData.protein < 0) {
+      toast.error("البروتين لا يمكن أن يكون سالب");
       return;
     }
 
     // Check for duplicates
-    const isDuplicate = coursePoints.some(
-      (course) =>
-        course.name.toLowerCase() === formData.name.toLowerCase() &&
-        course.id !== editingCourse?.id,
+    const isDuplicate = dietItems.some(
+      (item) =>
+        item.name.toLowerCase() === formData.name.toLowerCase() &&
+        item.id !== editingItem?.id,
     );
 
     if (isDuplicate) {
-      toast.error("اسم التمرين موجود بالفعل");
+      toast.error("اسم العنصر الغذائي موجود بالفعل");
       return;
     }
 
     // Show loading state
     const loadingToast = toast.loading(
-      editingCourse ? "جاري تحديث التمرين..." : "جاري حفظ التمرين...",
+      editingItem
+        ? "جاري تحديث العنصر الغذائي..."
+        : "جاري حفظ العنصر الغذائي...",
     );
 
     try {
-      // Validate data before saving
+      // Validate and clean data before saving
       const dataToSave = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         category: formData.category.trim(),
+        calories: formData.calories || 0,
+        protein: formData.protein || 0,
       };
 
-      if (editingCourse) {
-        // Update existing course
+      if (editingItem) {
+        // Update existing item
         await updateRecord(
-          SUPABASE_TABLES.COURSE_POINTS,
-          editingCourse.id,
+          SUPABASE_TABLES.DIET_ITEMS,
+          editingItem.id,
           dataToSave,
         );
-        toast.success("تم تحديث التمرين بنجاح", { id: loadingToast });
+        toast.success("تم تحديث العنصر الغذائي بنجاح", { id: loadingToast });
       } else {
-        // Add new course
-        await createRecord(SUPABASE_TABLES.COURSE_POINTS, dataToSave);
-        toast.success("تم إضافة التمرين بنجاح", { id: loadingToast });
+        // Add new item
+        await createRecord(SUPABASE_TABLES.DIET_ITEMS, dataToSave);
+        toast.success("تم إضافة العنصر الغذائي بنجاح", { id: loadingToast });
       }
 
       // Reload data to ensure consistency
-      await reloadCourses();
+      await reloadDietItems();
       handleCloseDialog();
     } catch (error) {
-      console.error("Error saving course:", error);
+      console.error("Error saving diet item:", error);
       const errorMessage =
         error instanceof Error ? error.message : "خطأ غير محدد";
-      toast.error(`فشل في حفظ التمرين: ${errorMessage}`, { id: loadingToast });
+      toast.error(`فشل في حفظ العنصر الغذائي: ${errorMessage}`, {
+        id: loadingToast,
+      });
     }
   };
 
   // Handle edit
-  const handleEdit = (course: CoursePoint) => {
-    setEditingCourse(course);
+  const handleEdit = (item: DietItem) => {
+    setEditingItem(item);
     setFormData({
-      name: course.name,
-      description: course.description,
-      category: course.category,
+      name: item.name,
+      description: item.description,
+      category: item.category,
+      calories: item.calories?.toString() || "",
+      protein: item.protein?.toString() || "",
     });
     setIsDialogOpen(true);
   };
 
   // Handle delete
   const handleDelete = async (id: string) => {
-    if (window.confirm("هل أنت متأكد من حذف هذا التمرين؟")) {
+    if (window.confirm("هل أنت متأكد من حذف هذا العنصر الغذائي؟")) {
       try {
-        await deleteRecord(SUPABASE_TABLES.COURSE_POINTS, id);
-        await reloadCourses();
+        await deleteRecord(SUPABASE_TABLES.DIET_ITEMS, id);
+        await reloadDietItems();
       } catch (error) {
-        console.error("Error deleting course:", error);
-        toast.error("حدث خطأ أثناء حذف التمرين");
+        console.error("Error deleting diet item:", error);
+        toast.error("حدث خطأ أثناء حذف العنصر الغذائي");
       }
     }
   };
@@ -234,11 +278,13 @@ export default function Courses() {
   // Handle close dialog
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
-    setEditingCourse(null);
+    setEditingItem(null);
     setFormData({
       name: "",
       description: "",
-      category: categories[0],
+      category: dietCategories[0],
+      calories: "",
+      protein: "",
     });
   };
 
@@ -251,42 +297,50 @@ export default function Courses() {
     });
   };
 
+  // Get category stats
+  const getCategoryStats = () => {
+    const stats: { [key: string]: number } = {};
+    dietItems.forEach((item) => {
+      stats[item.category] = (stats[item.category] || 0) + 1;
+    });
+    return stats;
+  };
+
+  const categoryStats = getCategoryStats();
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">إدارة الكورسات</h1>
+          <h1 className="text-3xl font-bold">إدارة الأنظمة الغذائية</h1>
           <p className="text-muted-foreground">
-            إدارة التمارين المستخدمة في خطط التدريب
+            إدارة العناصر الغذائية المستخدمة في الخطط الغذائية
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button
-              className="gym-button"
-              onClick={() => setEditingCourse(null)}
-            >
+            <Button className="gym-button" onClick={() => setEditingItem(null)}>
               <Plus className="w-4 h-4 mr-2" />
-              إضافة تمرين جديد
+              إضافة عنصر غذائي
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {editingCourse ? "تعديل التمرين" : "إضافة تمرين جديد"}
+                {editingItem ? "تعديل العنصر الغذائي" : "إضافة عنصر غذائي جديد"}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">اسم التمرين *</Label>
+                <Label htmlFor="name">اسم العنصر الغذائي *</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  placeholder="أدخل اسم التمرين"
+                  placeholder="أدخل اسم العنصر"
                   className="text-right"
                   required
                 />
@@ -305,7 +359,7 @@ export default function Courses() {
                   }
                   className="w-full p-2 border rounded-md text-right"
                 >
-                  {categories.map((category) => (
+                  {dietCategories.map((category) => (
                     <option key={category} value={category}>
                       {category}
                     </option>
@@ -313,8 +367,45 @@ export default function Courses() {
                 </select>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="calories">السعرات (لكل 100غ)</Label>
+                  <Input
+                    id="calories"
+                    type="number"
+                    step="0.1"
+                    value={formData.calories}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        calories: e.target.value,
+                      }))
+                    }
+                    placeholder="السعرات"
+                    className="text-right"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="protein">البروتين (غ)</Label>
+                  <Input
+                    id="protein"
+                    type="number"
+                    step="0.1"
+                    value={formData.protein}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        protein: e.target.value,
+                      }))
+                    }
+                    placeholder="البروتين"
+                    className="text-right"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="description">وصف التمرين</Label>
+                <Label htmlFor="description">وصف العنصر</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
@@ -324,7 +415,7 @@ export default function Courses() {
                       description: e.target.value,
                     }))
                   }
-                  placeholder="وصف مفصل للتمرين..."
+                  placeholder="وصف مفصل للعنصر الغذائي..."
                   className="text-right"
                   rows={3}
                 />
@@ -333,7 +424,7 @@ export default function Courses() {
               <div className="flex gap-2 pt-4">
                 <Button type="submit" className="flex-1 gym-button">
                   <Save className="w-4 h-4 mr-2" />
-                  {editingCourse ? "تحديث" : "إضافة"}
+                  {editingItem ? "تحديث" : "إضافة"}
                 </Button>
                 <Button
                   type="button"
@@ -354,27 +445,29 @@ export default function Courses() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              إجمالي التمارين
+              إجمالي العناصر
             </CardTitle>
-            <Dumbbell className="h-4 w-4 text-muted-foreground" />
+            <Utensils className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{coursePoints.length}</div>
+            <div className="text-2xl font-bold">{dietItems.length}</div>
           </CardContent>
         </Card>
-        {categories.slice(0, 3).map((category) => (
-          <Card key={category}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{category}</CardTitle>
-              <Dumbbell className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {coursePoints.filter((c) => c.category === category).length}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {Object.entries(categoryStats)
+          .slice(0, 3)
+          .map(([category, count]) => (
+            <Card key={category}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {category}
+                </CardTitle>
+                <Utensils className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{count}</div>
+              </CardContent>
+            </Card>
+          ))}
       </div>
 
       {/* Filters */}
@@ -382,7 +475,7 @@ export default function Courses() {
         <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="البحث عن تمرين..."
+            placeholder="البحث عن عنصر غذائي..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pr-10"
@@ -394,7 +487,7 @@ export default function Courses() {
           className="w-full sm:w-48 p-2 border rounded-md text-right"
         >
           <option value="الكل">جميع الفئات</option>
-          {categories.map((category) => (
+          {dietCategories.map((category) => (
             <option key={category} value={category}>
               {category}
             </option>
@@ -409,54 +502,62 @@ export default function Courses() {
             <Table className="min-w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-right">اسم التمرين</TableHead>
+                  <TableHead className="text-right">اسم العنصر</TableHead>
                   <TableHead className="text-right">الفئة</TableHead>
+                  <TableHead className="text-right">السعرات</TableHead>
+                  <TableHead className="text-right">البروتين</TableHead>
                   <TableHead className="text-right">الوصف</TableHead>
                   <TableHead className="text-right">تاريخ الإضافة</TableHead>
                   <TableHead className="text-right">العمليات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCourses.length === 0 ? (
+                {filteredItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       <div className="text-muted-foreground">
                         {searchTerm || selectedCategory !== "الكل"
-                          ? "لم يتم العثور على تمارين مطابقة"
-                          : "لا توجد تمارين مضافة"}
+                          ? "لم يتم العثور على عناصر مطابقة"
+                          : "لا توجد عناصر غذائية مضافة"}
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCourses.map((course) => (
-                    <TableRow key={course.id}>
+                  filteredItems.map((item) => (
+                    <TableRow key={item.id}>
                       <TableCell className="font-medium text-right">
-                        {course.name}
+                        {item.name}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Badge variant="secondary">{course.category}</Badge>
+                        <Badge variant="secondary">{item.category}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {item.calories ? `${item.calories} kcal` : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {item.protein ? `${item.protein}g` : "-"}
                       </TableCell>
                       <TableCell className="text-right max-w-xs">
-                        <div className="truncate" title={course.description}>
-                          {course.description || "لا يوجد وصف"}
+                        <div className="truncate" title={item.description}>
+                          {item.description || "لا يوجد وصف"}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatDate(course.created_at)}
+                        {formatDate(item.created_at)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2">
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => handleEdit(course)}
+                            onClick={() => handleEdit(item)}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => handleDelete(course.id)}
+                            onClick={() => handleDelete(item.id)}
                             className="text-destructive hover:text-destructive"
                           >
                             <Trash2 className="w-4 h-4" />

@@ -1,237 +1,173 @@
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { Link, useLocation, Outlet } from "react-router-dom";
 import {
   Users,
   UserPlus,
-  GraduationCap,
-  Apple,
-  Package,
-  Activity,
-  LogOut,
   Dumbbell,
+  Utensils,
+  Store,
+  Receipt,
   Menu,
   X,
+  LogOut,
+  Home,
   Settings,
-  Download,
-  FileText,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import { logout, GYM_NAME, getLoginDuration } from "@/lib/auth-new";
-import {
-  getSubscribers,
-  getCoursePoints,
-  getDietItems,
-  getProducts,
-  getSales,
-} from "@/lib/database-new";
-import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import OfflineStatus from "./OfflineStatus";
+import LowStockAlert from "./LowStockAlert";
+import SyncStatus from "./SyncStatus";
 
 const navigation = [
-  { name: "المشتركين", href: "/dashboard/subscribers", icon: Users },
-  { name: "إضافة مشترك", href: "/dashboard/add-subscriber", icon: UserPlus },
-  { name: "إدارة التمارين", href: "/dashboard/courses", icon: GraduationCap },
-  {
-    name: "إدارة الأنظمة الغذائية",
-    href: "/dashboard/diet-plans",
-    icon: Apple,
-  },
-  { name: "المخزون", href: "/dashboard/inventory", icon: Package },
-  { name: "الإعدادات", href: "/dashboard/settings", icon: Settings },
-  { name: "فحص النظام", href: "/dashboard/diagnostics", icon: Activity },
+  { name: "المشتركين", href: "/subscribers", icon: Users },
+  { name: "إضافة مشترك", href: "/add-subscriber", icon: UserPlus },
+  { name: "الكورسات", href: "/courses", icon: Dumbbell },
+  { name: "الأنظمة الغذائية", href: "/diet", icon: Utensils },
+  { name: "المخزن", href: "/store", icon: Store },
+  { name: "المبيعات", href: "/sales", icon: Receipt },
 ];
 
 export default function Layout() {
-  const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
-
-  const isActive = (href: string) => {
-    if (href === "/dashboard/subscribers") {
-      return (
-        location.pathname === "/dashboard" ||
-        location.pathname === "/dashboard/subscribers"
-      );
-    }
-    return location.pathname === href;
-  };
-
-  const handleBackupDownload = async () => {
-    try {
-      const subscribers = await getSubscribers();
-      const coursePoints = await getCoursePoints();
-      const dietItems = await getDietItems();
-      const products = await getProducts();
-      const sales = await getSales();
-
-      const backup = {
-        timestamp: new Date().toISOString(),
-        gym_name: GYM_NAME,
-        version: "2.0",
-        data: {
-          subscribers,
-          coursePoints,
-          dietItems,
-          products,
-          sales,
-        },
-      };
-
-      const blob = new Blob([JSON.stringify(backup, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${GYM_NAME}-backup-${new Date().toISOString().split("T")[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Error creating backup:", error);
-    }
-  };
 
   return (
-    <div
-      className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50"
-      dir="rtl"
-    >
-      {/* Mobile menu overlay */}
-      {isMobileMenuOpen && (
+    <div className="min-h-screen bg-background">
+      {/* Offline Status */}
+      <OfflineStatus />
+
+      {/* Low Stock Alert */}
+      <LowStockAlert />
+
+      {/* Mobile sidebar backdrop */}
+      {sidebarOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 lg:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <div
         className={cn(
-          "fixed inset-y-0 right-0 z-50 w-64 bg-white/90 backdrop-blur-sm shadow-xl border-l border-orange-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0",
-          isMobileMenuOpen
-            ? "translate-x-0"
-            : "translate-x-full lg:translate-x-0",
+          "sidebar-responsive bg-sidebar border-l border-sidebar-border transform transition-transform duration-300 ease-in-out lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "translate-x-full",
         )}
       >
         <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-orange-200">
+          {/* Sidebar header */}
+          <div className="flex items-center justify-between h-16 px-6 border-b border-sidebar-border">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg text-white">
-                <Dumbbell className="h-6 w-6" />
+              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+                <Dumbbell className="w-6 h-6 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-gray-900">{GYM_NAME}</h1>
-                <p className="text-xs text-gray-600">نظام إدارة الصالة</p>
+                <h1 className="text-lg font-bold text-sidebar-foreground">
+                  صالة حسام جم
+                </h1>
+                <p className="text-sm text-sidebar-foreground/60">
+                  نظام إدارة الصالة
+                </p>
               </div>
             </div>
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => setIsMobileMenuOpen(false)}
+              size="icon"
+              onClick={() => setSidebarOpen(false)}
               className="lg:hidden"
             >
-              <X className="h-5 w-5" />
+              <X className="w-5 h-5" />
             </Button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-6 space-y-2">
+          <nav className="flex-1 px-4 py-6 space-y-2">
             {navigation.map((item) => {
+              const isActive = location.pathname === item.href;
               const Icon = item.icon;
+
               return (
-                <Button
+                <Link
                   key={item.name}
-                  variant={isActive(item.href) ? "default" : "ghost"}
+                  to={item.href}
+                  onClick={() => setSidebarOpen(false)}
                   className={cn(
-                    "w-full justify-start gap-3 h-12 text-right",
-                    isActive(item.href)
-                      ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md"
-                      : "text-gray-700 hover:bg-orange-100",
+                    "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors",
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   )}
-                  onClick={() => {
-                    navigate(item.href);
-                    setIsMobileMenuOpen(false);
-                  }}
                 >
-                  <Icon className="h-5 w-5" />
-                  {item.name}
-                </Button>
+                  <Icon className="w-5 h-5" />
+                  <span className="arabic">{item.name}</span>
+                </Link>
               );
             })}
           </nav>
 
-          {/* Footer */}
-          <div className="p-6 border-t border-orange-200 space-y-4">
-            {/* Session Info */}
-            <div className="text-center text-sm text-gray-600">
-              <p>مدة الجلسة: {getLoginDuration()}</p>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="flex-1">
-                    <Settings className="h-4 w-4 ml-1" />
-                    أدوات
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem onClick={handleBackupDownload}>
-                    <Download className="h-4 w-4 ml-2" />
-                    تحميل نسخة احتياطية
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.print()}>
-                    <FileText className="h-4 w-4 ml-2" />
-                    طباعة الصفحة
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={handleLogout}
-                    className="text-red-600"
-                  >
-                    <LogOut className="h-4 w-4 ml-2" />
-                    تسجيل الخروج
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+          {/* Sidebar footer */}
+          <div className="p-4 border-t border-sidebar-border space-y-2">
+            <Link
+              to="/settings"
+              className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-lg transition-colors"
+            >
+              <Settings className="w-5 h-5" />
+              <span className="arabic">الإعدادات</span>
+            </Link>
+            <Link
+              to="/login"
+              className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-lg transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="arabic">تسجيل خروج</span>
+            </Link>
           </div>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="lg:pr-64">
-        {/* Mobile header */}
-        <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm border-b border-orange-200 lg:hidden">
-          <div className="flex items-center justify-between p-4">
-            <h1 className="text-lg font-semibold text-gray-900">{GYM_NAME}</h1>
+      <div className="main-content-with-sidebar min-h-screen flex flex-col">
+        {/* Top bar */}
+        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 sm:px-6 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => setIsMobileMenuOpen(true)}
+              size="icon"
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden flex-shrink-0"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="w-5 h-5" />
             </Button>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base sm:text-lg font-semibold truncate">
+                نظام إدارة صالة حسام جم
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                مرحباً بك في نظام الإدارة
+              </p>
+            </div>
           </div>
-        </div>
+
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <SyncStatus compact />
+            <div className="text-xs sm:text-sm text-muted-foreground hidden md:block">
+              {new Date().toLocaleDateString("ar-EG", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })}
+            </div>
+            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-sm font-medium text-primary-foreground">
+                ح
+              </span>
+            </div>
+          </div>
+        </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto bg-gray-50 p-6">
+        <main className="p-4 sm:p-6 lg:p-8 flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>

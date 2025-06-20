@@ -1,647 +1,438 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useMemo, useEffect } from "react";
+import { Search, Plus, Users, Filter, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import SubscriberCard from "@/components/SubscriberCard";
+import { Link } from "react-router-dom";
+import { db } from "@/lib/database";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Users,
-  Search,
-  Trash2,
-  Eye,
-  Printer,
-  Plus,
-  UserPlus,
-  Calendar,
-  User,
-  Phone,
-  Weight,
-  Ruler,
-  FileText,
-  GraduationCap,
-  Apple,
-  AlertCircle,
-  Edit,
-} from "lucide-react";
-import {
-  getSubscribers,
-  deleteSubscriber,
-  getSubscriberWithGroups,
-} from "@/lib/database-offline";
-import { Subscriber, SubscriberWithGroups } from "@/lib/types-new";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import SubscriberPrintCard from "@/components/SubscriberPrintCard";
-import { format } from "date-fns";
-import { ar } from "date-fns/locale";
+  pullFromSupabase,
+  processSyncQueue,
+  isOnline,
+} from "@/lib/syncService";
+
+// Initial mock data - will be replaced by localStorage data
+const initialMockSubscribers = [
+  {
+    id: "1",
+    name: "أحمد محمد علي",
+    age: 25,
+    weight: 75,
+    height: 180,
+    phone: "01234567890",
+    notes: "مبتدئ في الرياضة",
+    created_at: "2024-01-15T10:00:00Z",
+    courses: [
+      {
+        id: "c1",
+        name: "كورس المبتدئين",
+        exercises: ["تمرين الضغط", "تمرين العقلة", "تمرين القرفصاء"],
+      },
+    ],
+    diet: [
+      {
+        id: "d1",
+        name: "نظام زيادة الوزن",
+        items: ["البروتين", "الكربوهيدرات", "الفيتامينات"],
+      },
+    ],
+  },
+  {
+    id: "2",
+    name: "فاطمة أحمد سالم",
+    age: 30,
+    weight: 65,
+    height: 165,
+    phone: "01987654321",
+    notes: "تريد فقدان الوزن",
+    created_at: "2024-01-20T14:30:00Z",
+    courses: [
+      {
+        id: "c2",
+        name: "كورس الكارديو",
+        exercises: ["الجري", "السباحة", "الدراجة"],
+      },
+    ],
+    diet: [
+      {
+        id: "d2",
+        name: "نظام فقدان الوزن",
+        items: ["الخضروات", "البروتين الخفيف", "الفواكه"],
+      },
+    ],
+  },
+  {
+    id: "3",
+    name: "محمد حسن عبدالله",
+    age: 28,
+    weight: 85,
+    height: 175,
+    phone: "01555666777",
+    notes: "رياضي محترف",
+    created_at: "2024-02-01T09:15:00Z",
+    courses: [
+      {
+        id: "c3",
+        name: "كورس المتقدمين",
+        exercises: ["رفع الأثقال", "تمارين القوة", "التحمل"],
+      },
+      {
+        id: "c4",
+        name: "كورس اللياقة",
+        exercises: ["اليوغا", "البيلاتس", "التمدد"],
+      },
+    ],
+    diet: [
+      {
+        id: "d3",
+        name: "نظام بناء العضلات",
+        items: ["البروتين العالي", "الكرياتين", "الأحماض الأمينية"],
+      },
+    ],
+  },
+  {
+    id: "4",
+    name: "سارة عبدالرحمن",
+    age: 22,
+    weight: 58,
+    height: 160,
+    phone: "01444555666",
+    created_at: "2024-02-10T16:45:00Z",
+    courses: [],
+    diet: [],
+  },
+  {
+    id: "5",
+    name: "ع��ي حسام الدين",
+    age: 35,
+    weight: 90,
+    height: 185,
+    phone: "01333444555",
+    notes: "يعاني من آلام الظهر",
+    created_at: "2024-02-15T11:20:00Z",
+    courses: [
+      {
+        id: "c5",
+        name: "كورس العلاج الطبيعي",
+        exercises: ["تمارين الظهر", "التقوية", "العلاج الطبيعي"],
+      },
+    ],
+    diet: [
+      {
+        id: "d4",
+        name: "نظام مضاد للالتهابات",
+        items: ["الأوميغا 3", "المكملات الطبيعية", "الخضروات الورقية"],
+      },
+    ],
+  },
+];
 
 export default function Subscribers() {
-  const navigate = useNavigate();
-  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [subscribers, setSubscribers] = useState(initialMockSubscribers);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState("newest");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Delete dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [subscriberToDelete, setSubscriberToDelete] =
-    useState<Subscriber | null>(null);
+  // Function to reload subscribers
+  const reloadSubscribers = async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
+    try {
+      const subscribersData = await db.subscribers.toArray();
 
-  // Details dialog state
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  const [selectedSubscriber, setSelectedSubscriber] =
-    useState<SubscriberWithGroups | null>(null);
-  const [loadingDetails, setLoadingDetails] = useState(false);
+      if (subscribersData.length > 0) {
+        // Load complete subscriber data with courses and diet
+        const enrichedSubscribers = await Promise.all(
+          subscribersData.map(async (subscriber) => {
+            // Get all groups for this subscriber
+            const subscriberGroups = await db.groups
+              .where("subscriber_id")
+              .equals(subscriber.id!)
+              .toArray();
 
+            const courses = [];
+            const diet = [];
+
+            // Process each group and get its items
+            for (const group of subscriberGroups) {
+              const groupItems = await db.groupItems
+                .where("group_id")
+                .equals(group.id!)
+                .toArray();
+
+              const items = groupItems.map((item) => item.name);
+
+              if (group.type === "course") {
+                courses.push({
+                  id: group.id!,
+                  name: group.name,
+                  exercises: items,
+                });
+              } else if (group.type === "diet") {
+                diet.push({
+                  id: group.id!,
+                  name: group.name,
+                  items: items,
+                });
+              }
+            }
+
+            return {
+              ...subscriber,
+              courses,
+              diet,
+            };
+          }),
+        );
+
+        setSubscribers(enrichedSubscribers);
+      } else {
+        setSubscribers([]);
+      }
+    } catch (error) {
+      console.error("Error reloading subscribers:", error);
+    } finally {
+      if (showLoading) setIsLoading(false);
+    }
+  };
+
+  // Load subscribers with immediate sync on component mount
   useEffect(() => {
-    loadSubscribers();
+    const loadWithSync = async () => {
+      // First load local data immediately
+      await reloadSubscribers();
+
+      // Then sync with Supabase if online
+      if (isOnline()) {
+        setIsSyncing(true);
+        try {
+          await Promise.all([processSyncQueue(), pullFromSupabase()]);
+          // Reload after sync to show fresh data
+          await reloadSubscribers();
+        } catch (error) {
+          console.error("Sync failed during load:", error);
+        } finally {
+          setIsSyncing(false);
+        }
+      }
+    };
+
+    loadWithSync();
   }, []);
 
-  const loadSubscribers = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await getSubscribers();
-      setSubscribers(data);
-    } catch (error) {
-      console.error("Error loading subscribers:", error);
-      setError(
-        error instanceof Error ? error.message : "خطأ في تحميل البيانات",
-      );
-    } finally {
-      setIsLoading(false);
+  const filteredAndSortedSubscribers = useMemo(() => {
+    let filtered = subscribers.filter((subscriber) =>
+      subscriber.name.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+
+    switch (sortBy) {
+      case "newest":
+        filtered.sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+        break;
+      case "oldest":
+        filtered.sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        );
+        break;
+      case "name":
+        filtered.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+        break;
+      case "age":
+        filtered.sort((a, b) => a.age - b.age);
+        break;
+      default:
+        break;
     }
-  };
 
-  const handleDeleteClick = (subscriber: Subscriber) => {
-    setSubscriberToDelete(subscriber);
-    setDeleteDialogOpen(true);
-  };
+    return filtered;
+  }, [subscribers, searchTerm, sortBy]);
 
-  const handleEditClick = (subscriber: Subscriber) => {
-    navigate(`/dashboard/edit-subscriber/${subscriber.id}`);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!subscriberToDelete) return;
-
+  const handleDeleteSubscriber = async (id: string) => {
     try {
-      await deleteSubscriber(subscriberToDelete.id);
-      await loadSubscribers(); // Refresh the list
-      setDeleteDialogOpen(false);
-      setSubscriberToDelete(null);
+      // Delete from database (cascading delete will handle groups and group_items)
+      await db.subscribers.delete(id);
+
+      // Update local state
+      const updatedSubscribers = subscribers.filter((sub) => sub.id !== id);
+      setSubscribers(updatedSubscribers);
+
+      // Also trigger sync for deletion
+      await db.syncQueue.add({
+        table_name: "subscribers",
+        record_id: id,
+        operation: "delete",
+        data: { id },
+        created_at: new Date().toISOString(),
+        retries: 0,
+      });
     } catch (error) {
       console.error("Error deleting subscriber:", error);
-      setError(error instanceof Error ? error.message : "خطأ في حذف المشترك");
     }
   };
 
-  const handleViewDetails = async (subscriber: Subscriber) => {
-    try {
-      setLoadingDetails(true);
-      setDetailsDialogOpen(true);
-      const details = await getSubscriberWithGroups(subscriber.id);
-      setSelectedSubscriber(details);
-    } catch (error) {
-      console.error("Error loading subscriber details:", error);
-      setError(
-        error instanceof Error ? error.message : "خطأ في تحميل تفاصيل المشترك",
-      );
-      setDetailsDialogOpen(false);
-    } finally {
-      setLoadingDetails(false);
-    }
+  const stats = {
+    total: subscribers.length,
+    withCourses: subscribers.filter((s) => s.courses.length > 0).length,
+    withDiet: subscribers.filter((s) => s.diet.length > 0).length,
   };
-
-  const handlePrint = async (subscriber: Subscriber) => {
-    try {
-      // Get full subscriber data with groups
-      const fullSubscriber = await getSubscriberWithGroups(subscriber.id);
-      if (!fullSubscriber) {
-        console.error("Could not load subscriber details for printing");
-        return;
-      }
-
-      // Create print window with compact design
-      const printWindow = window.open("", "_blank", "width=800,height=600");
-      if (!printWindow) return;
-
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html lang="ar" dir="rtl">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>خطة ${fullSubscriber.name} - صالة حسام</title>
-          <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
-        </head>
-        <body>
-          <div id="print-content">جاري التحميل...</div>
-        </body>
-        </html>
-      `);
-
-      // Import and render compact print component
-      setTimeout(async () => {
-        try {
-          const { default: CompactPrintCard } = await import(
-            "@/components/CompactPrintCard"
-          );
-          const { createRoot } = await import("react-dom/client");
-
-          const printElement = document.createElement("div");
-          const root = createRoot(printElement);
-
-          root.render(
-            React.createElement(CompactPrintCard, {
-              subscriber: fullSubscriber,
-            }),
-          );
-
-          setTimeout(() => {
-            const content =
-              printWindow.document.getElementById("print-content");
-            if (content && printElement.innerHTML) {
-              content.innerHTML = printElement.innerHTML;
-
-              // Auto print after content is loaded
-              setTimeout(() => {
-                printWindow.print();
-                printWindow.close();
-              }, 500);
-            }
-          }, 100);
-        } catch (error) {
-          console.error("Failed to load print component:", error);
-          printWindow.document.getElementById("print-content").innerHTML =
-            `<div style="text-align: center; padding: 2cm; font-family: Arial;">
-              <h2>خطأ في تحميل ورقة الطباعة</h2>
-              <p>يرجى المحاولة مرة أخرى</p>
-              <button onclick="window.close()">إغلاق</button>
-            </div>`;
-        }
-      }, 500);
-    } catch (error) {
-      console.error("Print error:", error);
-    }
-  };
-
-  // Filter subscribers based on search term
-  const filteredSubscribers = subscribers.filter(
-    (subscriber) =>
-      subscriber.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (subscriber.phone && subscriber.phone.includes(searchTerm)),
-  );
-
-  const formatDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), "dd MMMM yyyy", { locale: ar });
-    } catch {
-      return "تاريخ غير صحيح";
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto"></div>
-          <h2 className="text-xl font-semibold text-gray-900">
-            جاري تحميل المشتركين...
-          </h2>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div
-      className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 p-6"
-      dir="rtl"
-    >
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl text-white">
-              <Users className="h-8 w-8" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">المشتركين</h1>
-              <p className="text-gray-600">
-                إدارة وعرض جميع المشتركين في الصالة
-              </p>
-            </div>
-          </div>
-
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            المشتركين
+            {isSyncing && (
+              <div className="flex items-center gap-2 text-sm text-primary">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                مزامنة سريعة...
+              </div>
+            )}
+          </h1>
+          <p className="text-muted-foreground">
+            إدارة وعرض جميع المشتركين في الصالة
+            {isOnline() && !isSyncing && (
+              <span className="text-green-600 mr-2">• متصل</span>
+            )}
+            {!isOnline() && (
+              <span className="text-orange-600 mr-2">• غير متصل</span>
+            )}
+          </p>
+        </div>
+        <div className="flex gap-2">
           <Button
-            onClick={() => navigate("/dashboard/add-subscriber")}
-            className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
+            variant="outline"
+            onClick={async () => {
+              setIsSyncing(true);
+              try {
+                if (isOnline()) {
+                  await Promise.all([processSyncQueue(), pullFromSupabase()]);
+                }
+                await reloadSubscribers(true);
+              } finally {
+                setIsSyncing(false);
+              }
+            }}
+            disabled={isSyncing}
+            className="flex items-center gap-2"
           >
-            <UserPlus className="h-5 w-5 ml-2" />
-            إضافة مشترك جديد
+            <RefreshCw
+              className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`}
+            />
+            {isSyncing ? "جاري المزامنة..." : "تحديث"}
           </Button>
+          <Link to="/add-subscriber">
+            <Button className="gym-button">
+              <Plus className="w-4 h-4 mr-2" />
+              إضافة مشترك جديد
+            </Button>
+          </Link>
         </div>
-
-        {/* Search Bar */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="relative">
-              <Search className="absolute right-3 top-3 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="البحث في المشتركين (ا��اسم أو رقم الهاتف)..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pr-10 text-right"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Error Display */}
-        {error && (
-          <Alert className="border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-red-700">
-              {error}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Subscribers Count */}
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800">
-            عدد المشتركين: {filteredSubscribers.length}
-          </h2>
-          {searchTerm && (
-            <Badge variant="secondary" className="text-sm">
-              نتائج البحث: {filteredSubscribers.length} من أصل{" "}
-              {subscribers.length}
-            </Badge>
-          )}
-        </div>
-
-        {/* Subscribers Grid */}
-        {filteredSubscribers.length === 0 ? (
-          <Card>
-            <CardContent className="pt-12 pb-12 text-center">
-              <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-500 mb-2">
-                {searchTerm ? "لا توجد نتائج للبحث" : "لا يوجد مشتركين"}
-              </h3>
-              <p className="text-gray-400 mb-6">
-                {searchTerm
-                  ? "جرب البحث بكلمات أخرى"
-                  : "ابدأ بإضافة أول مشترك في الصالة"}
-              </p>
-              {!searchTerm && (
-                <Button
-                  onClick={() => navigate("/dashboard/add-subscriber")}
-                  className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600"
-                >
-                  <Plus className="h-5 w-5 ml-2" />
-                  إضافة مشترك جديد
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredSubscribers.map((subscriber) => (
-              <Card
-                key={subscriber.id}
-                className="hover:shadow-lg transition-all duration-200 border-0 shadow-md"
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-gradient-to-r from-orange-100 to-amber-100 rounded-lg">
-                        <User className="h-5 w-5 text-orange-600" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-lg font-bold text-gray-900 text-right">
-                          {subscriber.name}
-                        </CardTitle>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-gray-500">
-                            {formatDate(subscriber.created_at)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="pt-0">
-                  {/* Quick Info */}
-                  <div className="space-y-2 mb-4">
-                    {subscriber.age && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <User className="h-4 w-4" />
-                        <span>العمر: {subscriber.age} سنة</span>
-                      </div>
-                    )}
-                    {subscriber.phone && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Phone className="h-4 w-4" />
-                        <span>{subscriber.phone}</span>
-                      </div>
-                    )}
-                    {subscriber.weight && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Weight className="h-4 w-4" />
-                        <span>الوزن: {subscriber.weight} كج</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewDetails(subscriber)}
-                      className="flex-1 border-orange-200 text-orange-600 hover:bg-orange-50"
-                    >
-                      <Eye className="h-4 w-4 ml-1" />
-                      عرض التفاصيل
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditClick(subscriber)}
-                      className="border-green-200 text-green-600 hover:bg-green-50"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePrint(subscriber)}
-                      className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                    >
-                      <Printer className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteClick(subscriber)}
-                      className="border-red-200 text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-right">
-              تأكيد الحذف
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-right">
-              هل أنت متأكد من حذف المشترك "{subscriberToDelete?.name}"؟
-              <br />
-              <span className="text-red-600 font-medium">
-                هذا الإجراء لا يمكن التراجع عنه وسيتم حذف جميع البيانات
-                المرتبطة.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              حذف نهائي
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Subscriber-specific Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              إجمالي المشتركين
+            </CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">مع كورسات</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.withCourses}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              مع أنظمة غذائية
+            </CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.withDiet}</div>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Subscriber Details Dialog */}
-      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh]" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-right">
-              تفاصيل المشترك
-            </DialogTitle>
-            <DialogDescription className="text-right">
-              عرض شامل لبيانات المشترك ومجموعاته
-            </DialogDescription>
-          </DialogHeader>
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="البحث عن مشترك..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pr-10"
+          />
+        </div>
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="w-full sm:w-48">
+            <Filter className="w-4 h-4 mr-2" />
+            <SelectValue placeholder="ترتيب حسب" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">الأحدث</SelectItem>
+            <SelectItem value="oldest">الأقدم</SelectItem>
+            <SelectItem value="name">الاسم</SelectItem>
+            <SelectItem value="age">العمر</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-          {loadingDetails ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-              <span className="mr-3">جاري تحميل التفاصيل...</span>
-            </div>
-          ) : selectedSubscriber ? (
-            <ScrollArea className="max-h-[70vh]">
-              <div className="space-y-6 p-1">
-                {/* Basic Info */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-right">
-                      <User className="h-5 w-5" />
-                      المعلومات الأساسية
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">
-                          الاسم
-                        </label>
-                        <p className="text-lg font-semibold">
-                          {selectedSubscriber.name}
-                        </p>
-                      </div>
-                      {selectedSubscriber.age && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-600">
-                            العمر
-                          </label>
-                          <p className="text-lg">
-                            {selectedSubscriber.age} سنة
-                          </p>
-                        </div>
-                      )}
-                      {selectedSubscriber.weight && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-600">
-                            الوزن
-                          </label>
-                          <p className="text-lg">
-                            {selectedSubscriber.weight} كج
-                          </p>
-                        </div>
-                      )}
-                      {selectedSubscriber.height && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-600">
-                            الطول
-                          </label>
-                          <p className="text-lg">
-                            {selectedSubscriber.height} سم
-                          </p>
-                        </div>
-                      )}
-                      {selectedSubscriber.phone && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-600">
-                            الهاتف
-                          </label>
-                          <p className="text-lg">{selectedSubscriber.phone}</p>
-                        </div>
-                      )}
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">
-                          تاريخ الاشتراك
-                        </label>
-                        <p className="text-lg">
-                          {formatDate(selectedSubscriber.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                    {selectedSubscriber.notes && (
-                      <div className="mt-4">
-                        <label className="text-sm font-medium text-gray-600">
-                          الملاحظات
-                        </label>
-                        <p className="text-gray-700 bg-gray-50 p-3 rounded-lg mt-1">
-                          {selectedSubscriber.notes}
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Course Groups */}
-                {selectedSubscriber.courseGroups.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-right">
-                        <GraduationCap className="h-5 w-5" />
-                        مجموعات الكورسات (
-                        {selectedSubscriber.courseGroups.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {selectedSubscriber.courseGroups.map((group, index) => (
-                          <div
-                            key={group.id}
-                            className="border rounded-lg p-4 bg-blue-50"
-                          >
-                            <h4 className="font-semibold text-blue-900 mb-2">
-                              {group.title || `مجموعة كورسات ${index + 1}`}
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {group.items?.map((item) => (
-                                <div
-                                  key={item.id}
-                                  className="flex items-center gap-2 text-sm bg-white p-2 rounded"
-                                >
-                                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                  {item.name}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Diet Groups */}
-                {selectedSubscriber.dietGroups.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-right">
-                        <Apple className="h-5 w-5" />
-                        مجموعات الأنظمة الغذائية (
-                        {selectedSubscriber.dietGroups.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {selectedSubscriber.dietGroups.map((group, index) => (
-                          <div
-                            key={group.id}
-                            className="border rounded-lg p-4 bg-green-50"
-                          >
-                            <h4 className="font-semibold text-green-900 mb-2">
-                              {group.title || `مجموعة غذا��ية ${index + 1}`}
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {group.items?.map((item) => (
-                                <div
-                                  key={item.id}
-                                  className="flex items-center gap-2 text-sm bg-white p-2 rounded"
-                                >
-                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                  {item.name}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* No Groups Message */}
-                {selectedSubscriber.courseGroups.length === 0 &&
-                  selectedSubscriber.dietGroups.length === 0 && (
-                    <Card>
-                      <CardContent className="py-12 text-center">
-                        <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500">
-                          لم يتم إضافة مجموعات كورسات أو أنظمة غذائية لهذا
-                          المشترك بعد
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-              </div>
-            </ScrollArea>
-          ) : (
-            <div className="text-center py-12">
-              <AlertCircle className="h-12 w-12 text-red-300 mx-auto mb-4" />
-              <p className="text-red-600">خطأ في تحميل بيانات المشترك</p>
-            </div>
+      {/* Subscribers Grid */}
+      {filteredAndSortedSubscribers.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Users className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">لا توجد مشتركين</h3>
+          <p className="text-muted-foreground mb-4">
+            {searchTerm
+              ? "لم يتم العثور على مشتركين مطابقين لبحثك"
+              : "ابدأ بإضافة مشتركين جدد إلى الصالة"}
+          </p>
+          {!searchTerm && (
+            <Link to="/add-subscriber">
+              <Button className="gym-button">
+                <Plus className="w-4 h-4 mr-2" />
+                إضافة أول مشترك
+              </Button>
+            </Link>
           )}
-        </DialogContent>
-      </Dialog>
+        </Card>
+      ) : (
+        <div className="responsive-grid">
+          {filteredAndSortedSubscribers.map((subscriber) => (
+            <SubscriberCard
+              key={subscriber.id}
+              subscriber={subscriber}
+              onDelete={handleDeleteSubscriber}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
